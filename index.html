@@ -20,6 +20,9 @@
       <label class="simple-label" for="audio-file-input">Archivo de vídeo o audio</label>
       <input id="audio-file-input" type="file" accept="audio/*,video/*,.mp4,.mp3,.wav,.m4a,.webm,.mkv,.avi,.ogg">
       <p id="file-name" class="file-name">No has seleccionado ningún archivo.</p>
+      <label class="simple-label" for="youtube-url">O introduce un enlace de YouTube</label>
+      <input id="youtube-url" type="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" style="width:100%;padding:12px;border-radius:12px;background:#0b1020;color:#f8fafc;border:1px solid #334155">
+      <p id="youtube-note" class="privacy-note">Para YouTube, el enlace se envía al servidor para obtener subtítulos o transcribir el audio.</p>
       <label class="simple-label" for="language-select">Idioma del audio</label>
       <select id="language-select">
         <option value="es" selected>Español</option>
@@ -41,6 +44,7 @@
     </section>
     <p class="privacy-note">El archivo se procesa en este dispositivo. Límite: 500 MB. La primera carga descarga Whisper y necesita Internet. El tiempo depende de la duración del audio y del equipo.</p>
   </main>
-  <script src="transcription-v3.js"></script>
+  <script src="youtube-config.js"></script>
+  <script src="transcription-v3.js?v=youtube-1"></script>
 </body>
 </html>
