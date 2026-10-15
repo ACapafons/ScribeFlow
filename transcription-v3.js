@@ -2,6 +2,7 @@
 
 let selectedFile = null;
 let transcriber = null;
+let resultFilename = 'transcripcion.txt';
 const fileInput = document.getElementById('audio-file-input');
 const fileName = document.getElementById('file-name');
 const languageSelect = document.getElementById('language-select');
@@ -12,6 +13,7 @@ const transcriptText = document.getElementById('transcript-text');
 
 fileInput.addEventListener('change', () => {
   selectedFile = fileInput.files[0] || null;
+  document.getElementById('youtube-url').value = '';
   fileName.textContent = selectedFile ? selectedFile.name : 'No has seleccionado ningún archivo.';
   transcribeButton.disabled = !selectedFile;
   downloadButton.disabled = true;
@@ -19,7 +21,7 @@ fileInput.addEventListener('change', () => {
   status.textContent = selectedFile ? 'Archivo listo. Pulsa «Transcribir».' : 'La primera vez se descargará Whisper (unos cientos de MB).';
 });
 
-transcribeButton.addEventListener('click', transcribeFile);
+transcribeButton.addEventListener('click', () => youtubeUrl.value.trim() ? transcribeYouTube() : transcribeFile());
 
 downloadButton.addEventListener('click', () => {
   const text = transcriptText.value.trim();
@@ -28,12 +30,13 @@ downloadButton.addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = (selectedFile?.name || 'transcripcion').replace(/\.[^.]+$/, '') + '.txt';
+  link.download = resultFilename;
   link.click();
   URL.revokeObjectURL(url);
 });
 
 async function transcribeFile() {
+  resultFilename = (selectedFile?.name || 'transcripcion').replace(/\.[^.]+$/, '') + '.txt';
   if (!selectedFile) { status.textContent = 'Selecciona un archivo primero.'; return; }
   transcribeButton.disabled = true;
   downloadButton.disabled = true;
@@ -121,3 +124,85 @@ const versionNote = document.createElement('small');
 versionNote.textContent = 'Versión de transcripción: 3';
 versionNote.style.display = 'block';
 status.after(versionNote);
+
+const youtubeUrl = document.getElementById('youtube-url');
+const endpoint = window.SCRIBEFLOW_YOUTUBE_ENDPOINT || '';
+if (!endpoint) document.getElementById('youtube-note').textContent = 'La opción YouTube está pendiente de conectar con el servidor.';
+youtubeUrl.addEventListener('input', () => {
+  selectedFile = null;
+  fileInput.value = '';
+  fileName.textContent = 'No has seleccionado ningún archivo.';
+  transcriptText.value = '';
+  downloadButton.disabled = true;
+  transcribeButton.disabled = !youtubeUrl.value.trim() || !endpoint;
+  status.textContent = endpoint ? 'Enlace listo. Pulsa «Transcribir».' : 'El servidor de YouTube aún no está configurado.';
+});
+
+async function transcribeYouTube() {
+  transcribeButton.disabled = true;
+  fileInput.disabled = true;
+  youtubeUrl.disabled = true;
+  languageSelect.disabled = true;
+  downloadButton.disabled = true;
+  transcriptText.value = '';
+  const controller = new AbortController();
+  let timer;
+  const resetTimeout = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), 15 * 60 * 1000);
+  };
+  try {
+    if (!endpoint) throw new Error('El servidor de YouTube aún no está configurado.');
+    status.textContent = 'Conectando con YouTube…';
+    resetTimeout();
+    const response = await fetch(endpoint.replace(/\/$/, '') + '/youtube', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: youtubeUrl.value.trim(), language: languageSelect.value }),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(typeof error.detail === 'string' ? error.detail : 'No se pudo conectar con el servidor.');
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+    let complete = false;
+    function consume(line) {
+      if (!line.trim()) return;
+      const event = JSON.parse(line);
+      if (event.type === 'error') throw new Error(event.message);
+      if (event.type === 'status') status.textContent = event.message;
+      if (event.type === 'result') {
+        if (typeof event.text !== 'string' || !event.text.trim()) throw new Error('El servidor devolvió una transcripción vacía.');
+        transcriptText.value = event.text;
+        resultFilename = event.filename || 'youtube.txt';
+        downloadButton.disabled = false;
+        status.textContent = event.source === 'captions' ? 'Transcripción obtenida de los subtítulos de YouTube.' : 'Transcripción completada con Whisper.';
+        complete = true;
+      }
+    }
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      resetTimeout();
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split('\n');
+      pending = lines.pop();
+      lines.forEach(consume);
+    }
+    pending += decoder.decode();
+    consume(pending);
+    if (!complete) throw new Error('La conexión terminó sin devolver una transcripción.');
+  } catch (error) {
+    controller.abort();
+    status.textContent = error.name === 'AbortError' ? 'Se agotó el tiempo de espera del servidor. Puedes subir el archivo directamente.' : error.message;
+  } finally {
+    clearTimeout(timer);
+    fileInput.disabled = false;
+    youtubeUrl.disabled = false;
+    languageSelect.disabled = false;
+    transcribeButton.disabled = false;
+  }
+}
