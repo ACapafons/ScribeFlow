@@ -91,7 +91,7 @@ async function transcribeFile() {
     if (!audio.length) throw new Error('El archivo no contiene audio decodificable.');
 
     status.textContent = 'Transcribiendo con Whisper. En equipos modestos puede tardar varios minutos…';
-    const result = await transcriber({ audio, sampling_rate: targetRate }, {
+    const result = await transcriber(audio, {
       language: languageSelect.value === 'es' ? 'spanish' : languageSelect.value,
       task: 'transcribe',
       chunk_length_s: 30,
