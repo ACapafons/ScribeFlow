@@ -45,12 +45,8 @@
     <!-- Header Actions -->
     <div class="header-controls">
       <div class="engine-selector-wrap">
-        <span class="control-label">Motor:</span>
-        <select id="engine-select" class="select-input" title="Selecciona el motor de transcripción">
-          <option value="web-speech" selected>Web Speech (Directo en Navegador)</option>
-          <option value="openai-api">OpenAI Whisper Cloud API</option>
-          <option value="local-server">Servidor Local Whisper (Python faster-whisper)</option>
-        </select>
+        <span class="control-label">Modelo Whisper:</span>
+        <span class="select-input">Whisper base (local)</span>
       </div>
 
       <button id="btn-load-sample" class="btn btn-secondary" title="Cargar demo de tutorial universitario">
@@ -69,7 +65,7 @@
         <span>Modo Presentación</span>
       </button>
 
-      <button id="btn-open-settings" class="btn btn-icon" title="Ajustes y Clave OpenAI">
+      <button id="btn-open-settings" class="btn btn-icon" title="Preferencias">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
           <circle cx="12" cy="12" r="3"/>
@@ -98,6 +94,8 @@
             <span class="drop-hint">Arrastra y suelta tu archivo aquí o haz clic para explorar</span>
           </div>
         </label>
+        <button id="btn-transcribe" class="btn btn-primary" type="button">Transcribir archivo</button>
+        <p id="transcribe-status" role="status" aria-live="polite">Selecciona un vídeo o audio. La primera vez se descargará el modelo Whisper.</p>
       </div>
 
       <div class="dock-divider"></div>
@@ -419,28 +417,9 @@
       </div>
 
       <div class="dialog-body">
-        <!-- Tab 1: OpenAI Whisper API -->
         <div class="config-group">
-          <h4 class="config-group-title">OpenAI Whisper Cloud API (Opcional)</h4>
-          <p class="config-group-desc">Si deseas transcribir archivos muy largos directamente con la API en la nube de OpenAI Whisper:</p>
-          <div class="input-field">
-            <label for="input-openai-key">Clave de API de OpenAI:</label>
-            <input type="password" id="input-openai-key" class="text-input" placeholder="sk-...">
-          </div>
-        </div>
-
-        <!-- Tab 2: Local Whisper Server (faster-whisper) -->
-        <div class="config-group">
-          <h4 class="config-group-title">Servidor Local Python Whisper (100% Offline y Gratis)</h4>
-          <p class="config-group-desc">Puedes ejecutar el script <code>scribeflow_cli.py</code> incluido en este repositorio con <code>faster-whisper</code> para transcribir offline en tu propio ordenador con aceleración de GPU o CPU.</p>
-          <div class="input-field">
-            <label for="input-local-endpoint">Endpoint local:</label>
-            <input type="text" id="input-local-endpoint" class="text-input" value="http://localhost:8000/transcribe">
-          </div>
-          <div class="server-status-check">
-            <button id="btn-ping-server" class="btn btn-secondary btn-compact">Comprobar Conexión</button>
-            <span id="server-ping-result" class="ping-result">No verificado</span>
-          </div>
+          <h4 class="config-group-title">Transcripción local con Whisper</h4>
+          <p class="config-group-desc">El modelo se descarga la primera vez. El audio se procesa en este navegador y no se envía a una API. El rendimiento depende de tu equipo; los vídeos largos pueden necesitar bastante memoria. Para mejores resultados, usa Chrome o Edge actualizado y archivos MP4, WebM, MP3 o WAV.</p>
         </div>
 
         <!-- General App Settings -->

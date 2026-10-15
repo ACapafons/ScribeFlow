@@ -65,6 +65,8 @@
     vuBar: document.getElementById('vu-bar'),
     micLanguage: document.getElementById('mic-language'),
     engineSelect: document.getElementById('engine-select'),
+    btnTranscribe: document.getElementById('btn-transcribe'),
+    transcribeStatus: document.getElementById('transcribe-status'),
     btnLoadSample: document.getElementById('btn-load-sample'),
 
     // Export & ChatGPT Bar
@@ -259,50 +261,21 @@
   // --- Real Media File Loading (Video & Audio) ---
   function handleFileSelected(file) {
     if (!file) return;
-
     state.filename = file.name;
     el.filenameBadge.textContent = file.name;
-
     const fileUrl = URL.createObjectURL(file);
     const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mkv|mov|avi)$/i.test(file.name);
-
     if (isVideo) {
-      state.currentMediaType = 'video';
-      state.currentMedia = el.video;
-      el.video.src = fileUrl;
-      el.videoWrap.classList.add('visible');
-      el.audio.pause();
+      state.currentMediaType='video'; state.currentMedia=el.video; el.video.src=fileUrl;
+      el.videoWrap.classList.add('visible'); el.audio.pause();
     } else {
-      state.currentMediaType = 'audio';
-      state.currentMedia = el.audio;
-      el.audio.src = fileUrl;
-      el.videoWrap.classList.remove('visible');
-      el.video.pause();
+      state.currentMediaType='audio'; state.currentMedia=el.audio; el.audio.src=fileUrl;
+      el.videoWrap.classList.remove('visible'); el.video.pause();
     }
-
-    // Attach metadata listener to update duration
-    state.currentMedia.onloadedmetadata = function () {
-      state.duration = state.currentMedia.duration || 60;
-      el.totalTimeText.textContent = formatTime(state.duration);
-      generateSyntheticWaveform(state.duration);
-      drawWaveform();
-    };
-
-    // Decode audio data for real waveform if supported
+    state.currentMedia.onloadedmetadata=function(){state.duration=state.currentMedia.duration||60;el.totalTimeText.textContent=formatTime(state.duration);generateSyntheticWaveform(state.duration);drawWaveform();};
     decodeAudioForWaveform(file);
-
-    // Initial segment placeholder or trigger transcription
-    state.segments = [
-      {
-        id: 1,
-        start: 0.0,
-        end: Math.min(state.duration || 10, 8.0),
-        speaker: 'Hablante 1',
-        text: `Archivo importado: "${file.name}". Listo para transcribir.`
-      }
-    ];
-
-    renderTranscript();
+    state.segments=[]; renderTranscript();
+    el.transcribeStatus.textContent='Archivo cargado. Pulsa «Transcribir archivo».';
     showToast(`Archivo "${file.name}" cargado`);
   }
 
@@ -579,6 +552,35 @@
     el.statChars.textContent = chars.toLocaleString();
     el.statReadTime.textContent = `${minutes}m ${seconds}s`;
     el.statWpm.textContent = '145 PPM';
+  }
+
+  async function transcribeLoadedFile() {
+    if(!state.currentMedia||!state.currentMedia.src)return showToast('Carga primero un vídeo o audio.','error');
+    el.btnTranscribe.disabled=true;
+    el.transcribeStatus.textContent='Preparando Whisper. La primera carga descarga el modelo.';
+    try {
+      if(!state.transcriber){
+        const {pipeline,env}=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
+        env.allowLocalModels=false;
+        state.transcriber=await pipeline('automatic-speech-recognition','Xenova/whisper-base',{progress_callback:p=>{if(p.status==='progress')el.transcribeStatus.textContent='Descarga Whisper: '+Math.round(p.progress||0)+'%';}});
+      }
+      const media=state.currentMedia,oldTime=media.currentTime,wasPlaying=!media.paused,oldEnded=media.onended,oldMuted=media.muted;
+      media.pause(); el.transcribeStatus.textContent='Extrayendo audio…'; media.currentTime=0;
+      const ctx=new(window.AudioContext||window.webkitAudioContext)(),source=ctx.createMediaElementSource(media),processor=ctx.createScriptProcessor(4096,1,1),silent=ctx.createGain(),chunks=[];
+      silent.gain.value=0;source.connect(processor);processor.connect(silent);silent.connect(ctx.destination);source.connect(ctx.destination);
+      const done=new Promise(resolve=>{media.onended=resolve});processor.onaudioprocess=e=>chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      media.muted=true;await media.play();await Promise.race([done,new Promise(resolve=>setTimeout(resolve,Math.ceil(media.duration*1000)+5000))]);
+      media.pause();processor.disconnect();source.disconnect();silent.disconnect();const rate=ctx.sampleRate;await ctx.close();
+      media.muted=oldMuted;media.onended=oldEnded;media.currentTime=oldTime;if(wasPlaying)await media.play().catch(()=>{});
+      const audio=new Float32Array(chunks.reduce((n,c)=>n+c.length,0));let offset=0;for(const chunk of chunks){audio.set(chunk,offset);offset+=chunk.length}
+      el.transcribeStatus.textContent='Transcribiendo en este dispositivo…';
+      const lang=el.micLanguage.value.startsWith('es')?'spanish':el.micLanguage.value.slice(0,2);
+      const result=await state.transcriber({audio,sampling_rate:rate},{language:lang,task:'transcribe',chunk_length_s:30,stride_length_s:5,return_timestamps:true});
+      state.segments=(result.chunks||[]).map((c,i)=>({id:i+1,start:c.timestamp[0]||0,end:c.timestamp[1]||(c.timestamp[0]||0)+1,speaker:'Whisper',text:c.text.trim()})).filter(c=>c.text);
+      if(!state.segments.length&&result.text)state.segments=[{id:1,start:0,end:state.duration,speaker:'Whisper',text:result.text.trim()}];
+      renderTranscript();el.transcribeStatus.textContent='Transcripción completada. Audio procesado en este dispositivo.';showToast('Transcripción terminada');
+    }catch(error){console.error(error);el.transcribeStatus.textContent=error.message||'No se pudo transcribir.';showToast(error.message||'Error al transcribir','error')}
+    finally{el.btnTranscribe.disabled=false}
   }
 
   // --- Real-time Speech Recognition (Web Speech API) ---
@@ -950,6 +952,7 @@ ${fullTranscript}`;
 
     // Live Mic Toggle
     el.btnToggleMic.addEventListener('click', toggleRecording);
+    el.btnTranscribe.addEventListener('click', transcribeLoadedFile);
     el.micLanguage.addEventListener('change', () => {
       if (state.isRecording) {
         stopRecording();
