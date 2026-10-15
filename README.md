@@ -46,3 +46,11 @@ El archivo y la transcripción se procesan en el dispositivo: el código no los 
 Los cambios en `main` activan GitHub Pages. Un despliegue correcto confirma la publicación del sitio, no la precisión de la transcripción.
 
 La página muestra **Versión de transcripción: 3**. Si aparece un error, conserva su mensaje completo para identificar el punto del fallo. Si ves una versión anterior, recarga la página. La confirmación de uso en un navegador no garantiza compatibilidad con todos los archivos o dispositivos.
+
+## Integración YouTube en preparación
+
+Esta rama añade un campo de enlace y un backend independiente en `backend/`. La configuración de producción aún está pendiente: la versión publicada en GitHub Pages sigue usando únicamente archivos.
+
+El backend busca subtítulos en el idioma elegido. Si no existen, intenta descargar el audio de un vídeo público de hasta 30 minutos y transcribirlo con faster-whisper. El navegador recibe estados y el resultado mediante NDJSON y conserva el mismo editor y descarga TXT. Para YouTube, el enlace se envía al servidor y el audio se procesa allí; para archivos se mantiene el procesamiento local en el navegador.
+
+El alojamiento debe permitir procesos largos, FFmpeg, Deno, temporales y memoria suficiente para Whisper. Ver `backend/README.md`. La conexión Vercel disponible devuelve 403 al consultar el proyecto `scribeflow`; no se ha desplegado ni validado la obtención real desde YouTube. La sintaxis de Python/JavaScript y ocho casos de validación de URL están comprobados. Estas comprobaciones no equivalen a una prueba completa del servicio.
