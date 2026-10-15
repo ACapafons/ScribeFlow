@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Transcribe vídeos y audios con Whisper desde el navegador y descarga el texto.">
-  <title>Transcribir vídeo a texto</title>
+  <meta name="description" content="ScribeFlow: selecciona un vídeo o audio, transcríbelo con Whisper en tu dispositivo, revisa el texto y descárgalo como TXT.">
+  <title>ScribeFlow · Transcribir vídeo o audio a TXT</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
   <main class="simple-app">
     <header class="simple-header">
       <h1>Transcribir vídeo o audio</h1>
-      <p>Sube un archivo, espera la transcripción y descárgala como TXT.</p>
+      <p>Selecciona un archivo, pulsa Transcribir y descarga el texto como TXT.</p>
     </header>
     <section class="simple-panel">
       <label class="simple-label" for="audio-file-input">Archivo de vídeo o audio</label>
@@ -37,9 +37,9 @@
         <h2>Transcripción</h2>
         <button id="btn-download-txt" type="button" disabled>Descargar TXT</button>
       </div>
-      <textarea id="transcript-text" rows="16" placeholder="Aquí aparecerá la transcripción." aria-label="Transcripción"></textarea>
+      <textarea id="transcript-text" rows="16" placeholder="Aquí aparecerá la transcripción. Puedes corregirla antes de descargarla." aria-label="Transcripción"></textarea>
     </section>
-    <p class="privacy-note">El archivo se procesa en este dispositivo. Para la primera descarga del modelo necesitas conexión a Internet.</p>
+    <p class="privacy-note">El archivo se procesa en este dispositivo. Límite: 500 MB. La primera carga descarga Whisper y necesita Internet. El tiempo depende de la duración del audio y del equipo.</p>
   </main>
   <script src="transcription-v3.js"></script>
 </body>
