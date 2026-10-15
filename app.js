@@ -50,11 +50,15 @@ async function transcribeFile() {
       });
     }
 
-    status.textContent = 'Leyendo y decodificando el audio…';
+    status.textContent = 'Leyendo el archivo…';
+    if (selectedFile.size > 500 * 1024 * 1024) throw new Error('El archivo supera 500 MB. Usa un vídeo más corto o comprímelo antes de subirlo.');
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) throw new Error('Este navegador no permite procesar audio. Prueba con Chrome o Edge actualizado.');
     const context = new AudioContextClass();
+    status.textContent = 'Cargando archivo en memoria…';
     const buffer = await selectedFile.arrayBuffer();
+    status.textContent = 'Decodificando audio. En archivos largos puede tardar un poco…';
+    await new Promise(resolve => setTimeout(resolve, 50));
     let decoded;
     try {
       decoded = await context.decodeAudioData(buffer);
@@ -70,27 +74,32 @@ async function transcribeFile() {
     const outputLength = Math.ceil(source.length * targetRate / sourceRate);
     const audio = new Float32Array(outputLength);
     const ratio = sourceRate / targetRate;
-    for (let i = 0; i < outputLength; i++) {
+    const blockSize = 250000;
+    for (let blockStart = 0; blockStart < outputLength; blockStart += blockSize) {
+      const blockEnd = Math.min(outputLength, blockStart + blockSize);
+      for (let i = blockStart; i < blockEnd; i++) {
       const position = i * ratio;
       const left = Math.floor(position);
       const fraction = position - left;
       const first = source[left] || 0;
       const second = source[Math.min(left + 1, source.length - 1)] || 0;
       audio[i] = first + (second - first) * fraction;
-      if (i % 800000 === 0) {
-        status.textContent = 'Preparando audio… ' + Math.min(99, Math.round(i / outputLength * 100)) + '%';
-        await new Promise(resolve => setTimeout(resolve, 0));
       }
+      status.textContent = 'Preparando audio… ' + Math.min(99, Math.round(blockEnd / outputLength * 100)) + '%';
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
     if (!audio.length) throw new Error('El archivo no contiene audio decodificable.');
 
-    status.textContent = 'Transcribiendo en este dispositivo…';
+    status.textContent = 'Transcribiendo con Whisper. En equipos modestos puede tardar varios minutos…';
     const result = await transcriber({ audio, sampling_rate: targetRate }, {
       language: languageSelect.value === 'es' ? 'spanish' : languageSelect.value,
       task: 'transcribe',
       chunk_length_s: 30,
       stride_length_s: 5,
-      return_timestamps: false
+      return_timestamps: false,
+      callback_function: (tokens) => {
+        if (tokens && tokens.length) status.textContent = 'Whisper está procesando el audio… ' + tokens.length + ' tokens';
+      }
     });
     transcriptText.value = (result.chunks || []).map(chunk => chunk.text.trim()).filter(Boolean).join(' ').trim() || (result.text || '').trim();
     if (!transcriptText.value) throw new Error('Whisper no ha detectado voz en el archivo.');
