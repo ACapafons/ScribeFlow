@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+
+# System and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local media tests
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.mkv
+*.srt
+*.vtt
+!buzz/assets/*
