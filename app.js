@@ -49,37 +49,48 @@ async function transcribeFile() {
         }
       });
     }
-    status.textContent = 'Preparando el audio…';
-    const mediaUrl = URL.createObjectURL(selectedFile);
-    const media = document.createElement(selectedFile.type.startsWith('video/') ? 'video' : 'audio');
-    media.preload = 'auto';
-    media.src = mediaUrl;
-    await new Promise((resolve, reject) => {
-      media.addEventListener('loadedmetadata', resolve, { once: true });
-      media.addEventListener('error', () => reject(new Error('No se puede leer este formato. Prueba con MP4, WebM, MP3 o WAV.')), { once: true });
-    });
-    const context = new (window.AudioContext || window.webkitAudioContext)();
-    const source = context.createMediaElementSource(media);
-    const processor = context.createScriptProcessor(4096, 1, 1);
-    const silent = context.createGain();
-    const chunks = [];
-    silent.gain.value = 0;
-    source.connect(processor); processor.connect(silent); silent.connect(context.destination);
-    processor.onaudioprocess = event => chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-    const ended = new Promise(resolve => media.addEventListener('ended', resolve, { once: true }));
-    await media.play();
-    await Promise.race([ended, new Promise((_, reject) => setTimeout(() => reject(new Error('Se agotó el tiempo al leer el archivo.')), Math.ceil(media.duration * 1000) + 10000))]);
-    processor.disconnect(); source.disconnect(); silent.disconnect();
-    const sampleRate = context.sampleRate;
+
+    status.textContent = 'Leyendo y decodificando el audio…';
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) throw new Error('Este navegador no permite procesar audio. Prueba con Chrome o Edge actualizado.');
+    const context = new AudioContextClass();
+    const buffer = await selectedFile.arrayBuffer();
+    let decoded;
+    try {
+      decoded = await context.decodeAudioData(buffer);
+    } catch {
+      throw new Error('No se pudo decodificar el audio de este archivo. Prueba con MP4, WebM, MP3 o WAV.');
+    }
     await context.close();
-    URL.revokeObjectURL(mediaUrl);
-    const audio = new Float32Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
-    let offset = 0;
-    for (const chunk of chunks) { audio.set(chunk, offset); offset += chunk.length; }
+
+    status.textContent = 'Preparando audio para Whisper…';
+    const targetRate = 16000;
+    const sourceRate = decoded.sampleRate;
+    const source = decoded.getChannelData(0);
+    const outputLength = Math.ceil(source.length * targetRate / sourceRate);
+    const audio = new Float32Array(outputLength);
+    const ratio = sourceRate / targetRate;
+    for (let i = 0; i < outputLength; i++) {
+      const position = i * ratio;
+      const left = Math.floor(position);
+      const fraction = position - left;
+      const first = source[left] || 0;
+      const second = source[Math.min(left + 1, source.length - 1)] || 0;
+      audio[i] = first + (second - first) * fraction;
+      if (i % 800000 === 0) {
+        status.textContent = 'Preparando audio… ' + Math.min(99, Math.round(i / outputLength * 100)) + '%';
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    if (!audio.length) throw new Error('El archivo no contiene audio decodificable.');
+
     status.textContent = 'Transcribiendo en este dispositivo…';
-    const result = await transcriber({ audio, sampling_rate: sampleRate }, {
+    const result = await transcriber({ audio, sampling_rate: targetRate }, {
       language: languageSelect.value === 'es' ? 'spanish' : languageSelect.value,
-      task: 'transcribe', chunk_length_s: 30, stride_length_s: 5, return_timestamps: true
+      task: 'transcribe',
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: false
     });
     transcriptText.value = (result.chunks || []).map(chunk => chunk.text.trim()).filter(Boolean).join(' ').trim() || (result.text || '').trim();
     if (!transcriptText.value) throw new Error('Whisper no ha detectado voz en el archivo.');
@@ -92,5 +103,6 @@ async function transcribeFile() {
     transcribeButton.disabled = false;
   }
 }
+
 
 
